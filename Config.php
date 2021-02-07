@@ -8,9 +8,8 @@ class Config {
     const MSG_PORT = 110;
     const MSG_USER = 'eorders';
     const MSG_PASS = 'pmkjndfygf32es';
-	
-	//const ORA_TNS  = 'PREORDERS';
-    //const ORA_USER = 'gen_graph';
-    //const ORA_PWD  = 'utythfk_graph';
+    
+    // обрабатываем только сообщения от этого адреса
+    const MSG_FROM = ''
 
 }

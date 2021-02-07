@@ -1,0 +1,15 @@
+{
+    "name": "andron/mr.rway",
+    "description": "Vagon dislocation mail parser",
+    "type": "script",
+    "require": {
+        "mongodb/mongodb": "^1.8"
+    },
+    "license": "BSD",
+    "authors": [
+        {
+            "name": "Andrey Novikov",
+            "email": "abracapulet@gmail.com"
+        }
+    ]
+}
