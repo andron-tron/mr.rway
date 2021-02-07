@@ -10,6 +10,6 @@ class Config {
     const MSG_PASS = 'pmkjndfygf32es';
     
     // обрабатываем только сообщения от этого адреса
-    const MSG_FROM = ''
+    const MSG_FROM = 'poisk_vagon@mnsk.rw.by';
 
 }
