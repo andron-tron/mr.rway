@@ -43,20 +43,19 @@ include 'Config.php';
     $structure = imap_fetchstructure($connection, $message_number);
     foreach ($structure->parts as $index => $part){
       /* Если раздел содержит аттачмент и оно имеет тип CSV */
-      echo "...sub type:" . strtolower($part->subtype) . "\n";
-      if($part->ifdparameters && strtolower($part->subtype) == 'octet-stream'){
+      echo "..... sub type:" . strtolower($part->subtype) . "\n";
+      if($part->ifdparameters && (strtolower($part->subtype) == 'octet-stream' || strtolower($part->subtype) == 'vnd.ms-excel')){
         foreach($part->dparameters as $object){
           if(strtolower($object->attribute) == 'filename') {
     					$attachments[$att_index]['filename'] = mime_dec($object->value);
               $attachments[$att_index]['encoding'] = $part->encoding;
-              echo "...filename:" . mime_dec($object->value) . "\n";
-              echo "...encoding:" . $part->encoding . "\n";
+              echo "..... filename:" . mime_dec($object->value) . "\n";
+              echo "..... encoding:" . $part->encoding . "\n";
               //странно, но сам аттачмент в следующем (i+1) разделе
               $file = imap_fetchbody($connection,$message_number,$index+1);
               
               if($part->encoding == 3){
                 $attachments[$att_index]['body'] = imap_base64($file);
-              //  file_put_contents('/tmp/' . $attachment['filename'], imap_base64($file));
               } elseif ($part->encoding == 1){
                 $attachments[$att_index]['body'] = $file;
               }
@@ -75,19 +74,22 @@ include 'Config.php';
 
   /* 
     Обработка вложения
+    -- удаленное копирование
+    -- проверка
   */
   function process_attachments($attachment, $message_id){
     try {
-        file_put_contents('/tmp/' . $attachment['filename'], $attachment['body']);
-		$command = "scp /tmp/" . $attachment['filename'] . " oracle@reqora:/oracle/soft/user_projects/wagons/csv_files/" . $attachment['filename'];
-		exec($command,$stdout,$rc);
-		if($rc == 0){
-			echo "... file remote copied \n";
-		} else {
-			echo "... error copying to ReqOra \n";
-		}
-		
-    } catch (\Exception $e) {
+      file_put_contents('/tmp/' . $attachment['filename'], $attachment['body']);
+      // file_put_contents('d:/tmp/' . $attachment['filename'], $attachment['body']);
+      $command = 'scp /tmp/' . $attachment['filename'] . " oracle@reqora:/oracle/soft/user_projects/wagons/csv_files/" . $attachment['filename'];
+		  exec($command,$stdout,$rc);
+      
+		  if($rc == 0){
+			  echo "..... file remote copied \n";
+		  } else {
+			  echo "..... error copying to ReqOra \n";
+		  }
+		} catch (\Exception $e) {
         $ret = false;
         return false;
         exit();
@@ -112,7 +114,7 @@ include 'Config.php';
       if($from == Config::MSG_FROM){
         $index = $msg->msgno;
         $messages[$index]['_id'] = trim($msg->message_id, '<>');
-        $mail_date = DateTime::createFromFormat('D M d H:i:s A P Y',$msg->date);
+        $mail_date = DateTime::createFromFormat('D, d M Y H:i:s P',$msg->date);
         $json_date = New MongoDB\BSON\UTCDateTime($pdate );
         $messages[$index]['date'] = $json_date;
         $messages[$index]['from'] = $from;
@@ -126,7 +128,7 @@ include 'Config.php';
     // Если письмо ранее не обрабатывалось
     if ( count($cursor) == 0){
 	    $process = true;
-      echo "...  Обрабатываем новое сообщение id=" . $msg['_id'] . "\n";
+      echo "... Обрабатываем новое сообщение id=" . $msg['_id'] . "\n";
       /* обрабатываем сообщение - ищем CSV вложения  */
       $result = process_message($connection, $index);
       /* Если в результате обработки обнаружены CSV вложения */
@@ -135,7 +137,10 @@ include 'Config.php';
            $status = process_attachments($attachment, $msg['_id']);
            if ($status) {
               $msg['status']['code'] = '0';
-              $msg['status']['text'] = 'Обнаружен CSV';
+              $msg['status']['text'] = 'Вложение обработано';
+              // delete message in inbox
+              imap_delete($connection, $index); 
+              imap_expunge($connection); 
            } 
          }
       } else {
@@ -150,4 +155,5 @@ include 'Config.php';
   /* GUID обработанных сообщений сохраняем в БД*/
   if($process){
     $result = $manager->executeBulkWrite('MailRobots.mr.vagons', $bulk, $wc);
+    
   }

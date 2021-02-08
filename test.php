@@ -1,7 +1,8 @@
 <?php
-require __DIR__ . '/vendor/autoload.php';
-$ptime = strtotime("Fri Feb  5 11:26:58 PM +03 2021");
-$pdate = DateTime::createFromFormat('D M d H:i:s A P Y' ,"Fri Feb 5 11:26:58 PM +03 2021");
+require __DIR__ . '\vendor\autoload.php';
+
+$pdate = DateTime::createFromFormat('D, d M Y H:i:s P' ,"Mon, 1 Feb 2021 10:31:49 +0300");
+                                    //Mon, 1 Feb 2021 10:31:49 +0300
 var_dump($pdate);
 $jd = New MongoDB\BSON\UTCDateTime($pdate );
 var_dump($jd);

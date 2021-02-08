@@ -11,5 +11,5 @@ class Config {
     
     // обрабатываем только сообщения от этого адреса
     const MSG_FROM = 'poisk_vagon@mnsk.rw.by';
-
+    //const MSG_FROM = 'ag.novikov@bmz.gomel.by';
 }
