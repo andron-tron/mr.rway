@@ -1,11 +1,11 @@
 # mr.rway
-simle script for parsing email messages from poisk_vagon@mnsk.rw.by and put attached CSV to future processing
+simle script for parsing email messages from poisk_vagon@mnsk.rw.by and put attached CSV to future processing.
+Особожден от использования MongoDB, обработка сообщений никуда не **логгируется**! Потенциальная проблема - возможна повторная обработка сообщени/файла...
 
 ## Развертывание ##
 **Linux**
 ```
 dnf install php-imap
-dnf install php-pecl-mongodb
 ```
 
 **Windows**
@@ -16,7 +16,6 @@ php-fileinfo
 ```
 **any OS**
 ```
-composer require mongodb/mongodb
 composer require php-imap/php-imap
 ```
 ## Notes ##
@@ -30,4 +29,3 @@ composer require php-imap/php-imap
     * копируем файл через SCP на целевой сервер
     * TODO: проверяем наличие файла на целевом сервере
     * если все норм - удаляем сообщение. Файл остается во временной папке на всякий случай.
-    * ID сообщения логгируется в MongoDB
