@@ -1,14 +1,7 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
 include 'Config.php';
-  error_reporting(E_ERROR);
-
-
-  /* Mongo DB for logging*/
-  $manager = new MongoDB\Driver\Manager('mongodb://'. Config::MON_USER . ':' . Config::MON_PWD . '@' . Config::MON_HOST);
-  $bulk = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-  $bulk2 = new MongoDB\Driver\BulkWrite(['ordered' => true]);
-  $wc = new MongoDB\Driver\WriteConcern(MongoDB\Driver\WriteConcern::MAJORITY, 1000);
+error_reporting(E_ERROR);
   
   
   function pop3_login($host,$port,$user,$pass,$folder="INBOX",$ssl=false)
@@ -23,6 +16,7 @@ include 'Config.php';
       return ((array)$check);
   }
 
+  // Перекодируем раздел ($in) письма в UTF-8, возвращаем строку
   function mime_dec($in){
     $x = imap_mime_header_decode($in);
     $text = '';
@@ -99,61 +93,55 @@ include 'Config.php';
   }
   /* -------------------------------------------- */
 
-  // соединяемся с Mailbox
-  $connection = pop3_login(Config::MSG_HOST, Config::MSG_PORT, Config::MSG_USER, Config::MSG_PASS);
-  $status = imap_check($connection);
-  $now = new DateTime();
-  echo "\n\n===>" . $now->format('Y-m-d H:i') . "(GMT) ===\n";
-  echo "... Connecting to: " . $status->Mailbox . "\n";
+  function main_proc(){
+    $st = false;
 
-  // массив всех сообщений
-  $all_messages = imap_fetch_overview($connection, '1:' . $status->Nmsgs);
-  foreach ($all_messages as $msg) {
+    // соединяемся с Mailbox
+    $connection = pop3_login(Config::MSG_HOST, Config::MSG_PORT, Config::MSG_USER, Config::MSG_PASS);
+    $status = imap_check($connection);
+    
+    echo "... Connecting to: " . $status->Mailbox . "\n";
+
+    // массив всех сообщений
+    $all_messages = imap_fetch_overview($connection, '1:' . $status->Nmsgs);
+    echo "... messages total: " . count($all_messages) . "\n";
+    foreach ($all_messages as $msg) {
       $from = filter_var(mime_dec($msg->from), FILTER_SANITIZE_EMAIL);
       // только сообщения от нужного автора
       if($from == Config::MSG_FROM){
-        $index = $msg->msgno;
-        $messages[$index]['_id'] = trim($msg->message_id, '<>');
-        $mail_date = DateTime::createFromFormat('D, d M Y H:i:s P',$msg->date);
-        $json_date = New MongoDB\BSON\UTCDateTime($pdate );
-        $messages[$index]['date'] = $json_date;
-        $messages[$index]['from'] = $from;
+        echo "... Обрабатываем новое сообщение id=" . trim($msg->message_id, '<>') . "\n";
+        $result = process_message($connection, $msg->msgno);
+        if (count($result['attachments'])){
+          foreach($result['attachments'] as $attachment){
+            $status = process_attachments($attachment, $msg['_id']);
+            if ($status) {
+               echo "... Вложение обработано\n";
+               // delete message in inbox
+               imap_delete($connection, $index); 
+               imap_expunge($connection); 
+               $status = true;
+            } 
+          }
+       } else {
+         echo "... Вложение не обнаружено\n";
+         $st = false;
+       }
       }
   }
+  return $st;
+}
 
-  $process = false;
-  foreach ($messages as $index => $msg){   
-    $query = new MongoDB\Driver\Query(["_id" =>  $msg['_id']]);
-    $cursor = $manager->executeQuery('MailRobots.mr.vagons', $query)->toArray();
-    // Если письмо ранее не обрабатывалось
-    if ( count($cursor) == 0){
-	    $process = true;
-      echo "... Обрабатываем новое сообщение id=" . $msg['_id'] . "\n";
-      /* обрабатываем сообщение - ищем CSV вложения  */
-      $result = process_message($connection, $index);
-      /* Если в результате обработки обнаружены CSV вложения */
-      if (count($result['attachments'])){
-         foreach($result['attachments'] as $attachment){
-           $status = process_attachments($attachment, $msg['_id']);
-           if ($status) {
-              $msg['status']['code'] = '0';
-              $msg['status']['text'] = 'Вложение обработано';
-              // delete message in inbox
-              imap_delete($connection, $index); 
-              imap_expunge($connection); 
-           } 
-         }
-      } else {
-        $msg['status']['code'] = '2';
-        $msg['status']['text'] = 'Вложение не обнаружено';
-      }
-	  $bulk->insert($msg);
-    } else {
-      echo "... Сообщение id=" . $msg['_id'] . " уже обрабатывалось.\n";
-    }
+// Main loop here!
+$now = new DateTime('now', new DateTimeZone('Europe/Minsk'));
+echo "\n\n===>" . $now->format('Y-m-d H:i') . " ===\n";
+for($i=1; $i < Config::NUM_ATTEMPTS; $i++){
+  echo ".. Attempts number $i\n";
+  if(!main_proc()){
+    sleep(Config::RE_TIME);
+  } else {
+    //break;
+    exit("...all right!");
   }
-  /* GUID обработанных сообщений сохраняем в БД*/
-  if($process){
-    $result = $manager->executeBulkWrite('MailRobots.mr.vagons', $bulk, $wc);
-    
-  }
+  // сдесь обрабатывем оповещение админа!
+}
+
